@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { StyleSheet, Text, TouchableOpacity, View, Animated} from "react-native";
 
 type ExpandableCardProps = {
   title: string;
@@ -54,6 +54,7 @@ const styles = StyleSheet.create({
     paddingTop: 20,
     borderTopWidth: 1,
     borderTopColor: "#eee"
+  
   },
   details: {
     fontSize: 16,
