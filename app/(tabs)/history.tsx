@@ -1,4 +1,4 @@
-import { StyleSheet, Text, View } from "react-native";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
 import {
   humidityDataset,
   pressureDataset,
@@ -61,7 +61,7 @@ export default function TabTwoScreen() {
   ];
 
   return (
-    <View style={styles.container}>
+    <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
       <View style={styles.header}>
         <Text style={styles.eyebrow}>Historical Overview</Text>
         <Text style={styles.title}>Sensor Trends</Text>
@@ -92,17 +92,19 @@ export default function TabTwoScreen() {
           </View>
         </View>
       ))}
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: "flex-start",
+    backgroundColor: "#070a0d",
+  },
+  contentContainer: {
     paddingTop: 60,
     paddingHorizontal: 20,
-    backgroundColor: "#070a0d",
+    paddingBottom: 120,
   },
   header: {
     marginBottom: 20,

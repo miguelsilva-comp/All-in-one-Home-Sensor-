@@ -1,9 +1,9 @@
 import React, { useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
 import {
-  humidityDataset,
-  pressureDataset,
-  temperatureDataset,
+    humidityDataset,
+    pressureDataset,
+    temperatureDataset,
 } from "../../constants/sensor-data";
 import ExpandableCard from "../card";
 
@@ -82,7 +82,7 @@ export default function HomeTab() {
   }
 
   return (
-    <View style={styles.container}>
+    <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
       <View style={styles.header}>
         <View style={styles.headerTopRow}>
           <Text style={styles.eyebrow}>Home Overview</Text>
@@ -114,18 +114,19 @@ export default function HomeTab() {
         details={pressureDetails}
         variant="pressure"
       />
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: "flex-start",
+    backgroundColor: "#070a0d"
+  },
+  contentContainer: {
     paddingTop: 60,
     paddingHorizontal: 20,
-    backgroundColor: "#070a0d"
-    
+    paddingBottom: 120,
   },
   header: {
     marginBottom: 20,
