@@ -1,4 +1,5 @@
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { useState } from "react";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import {
   humidityDataset,
   pressureDataset,
@@ -10,6 +11,21 @@ type SensorStats = {
   max: number;
   min: number;
 };
+
+function getNormalizedHeights(dataset: number[]) {
+  if (dataset.length === 0) {
+    return [];
+  }
+
+  const min = Math.min(...dataset);
+  const max = Math.max(...dataset);
+  const span = max - min || 1;
+
+  return dataset.map((value) => {
+    const normalized = (value - min) / span;
+    return 0.2 + normalized * 0.8;
+  });
+}
 
 function calculateStats(dataset: number[]): SensorStats {
   if (dataset.length === 0) {
@@ -32,31 +48,47 @@ function calculateStats(dataset: number[]): SensorStats {
 }
 
 export default function TabTwoScreen() {
+  const [expandedCard, setExpandedCard] = useState<string | null>(null);
   const temperatureStats = calculateStats(temperatureDataset);
   const humidityStats = calculateStats(humidityDataset);
   const pressureStats = calculateStats(pressureDataset);
+  const temperatureHeights = getNormalizedHeights(temperatureDataset);
+  const humidityHeights = getNormalizedHeights(humidityDataset);
+  const pressureHeights = getNormalizedHeights(pressureDataset);
 
   const historyCards = [
     {
       title: "Temperature",
       unit: "°C",
       stats: temperatureStats,
+      dataset: temperatureDataset,
+      heights: temperatureHeights,
       accent: styles.temperatureAccent,
       surface: styles.temperatureCard,
+      barStyle: styles.temperatureBar,
+      chartLabel: "Recent temperature trend",
     },
     {
       title: "Humidity",
       unit: "%",
       stats: humidityStats,
+      dataset: humidityDataset,
+      heights: humidityHeights,
       accent: styles.humidityAccent,
       surface: styles.humidityCard,
+      barStyle: styles.humidityBar,
+      chartLabel: "Recent humidity trend",
     },
     {
       title: "Pressure",
       unit: "hPa",
       stats: pressureStats,
+      dataset: pressureDataset,
+      heights: pressureHeights,
       accent: styles.pressureAccent,
       surface: styles.pressureCard,
+      barStyle: styles.pressureBar,
+      chartLabel: "Recent pressure trend",
     },
   ];
 
@@ -68,30 +100,67 @@ export default function TabTwoScreen() {
         <Text style={styles.subtitle}>Review average, peak, and low readings across each tracked indoor metric.</Text>
       </View>
 
-      {historyCards.map((card) => (
-        <View key={card.title} style={[styles.card, card.surface]}>
-          <View style={styles.cardHeader}>
-            <Text style={styles.cardTitle}>{card.title}</Text>
-            <View style={[styles.metricAccent, card.accent]} />
-          </View>
+      {historyCards.map((card) => {
+        const isExpanded = expandedCard === card.title;
 
-          <View style={styles.primaryStatRow}>
-            <Text style={styles.primaryStatValue}>{card.stats.average.toFixed(1)}</Text>
-            <Text style={styles.primaryStatUnit}>{card.unit} avg</Text>
-          </View>
+        const cardContent = (
+          <>
+            <View style={styles.cardHeader}>
+              <Text style={styles.cardTitle}>{card.title}</Text>
+              <View style={[styles.metricAccent, card.accent]} />
+            </View>
 
-          <View style={styles.statsGrid}>
-            <View style={styles.statBlock}>
-              <Text style={styles.statLabel}>Peak</Text>
-              <Text style={styles.statValue}>{card.stats.max}{card.unit}</Text>
+            <View style={styles.primaryStatRow}>
+              <Text style={styles.primaryStatValue}>{card.stats.average.toFixed(1)}</Text>
+              <Text style={styles.primaryStatUnit}>{card.unit} avg</Text>
             </View>
-            <View style={styles.statBlock}>
-              <Text style={styles.statLabel}>Low</Text>
-              <Text style={styles.statValue}>{card.stats.min}{card.unit}</Text>
+
+            <Text style={styles.tapHint}>{isExpanded ? "Tap to hide chart" : "Tap card to show chart"}</Text>
+
+            {isExpanded ? (
+              <View style={styles.chartWrap}>
+                <View style={styles.chartHeaderRow}>
+                  <Text style={styles.chartLabel}>{card.chartLabel}</Text>
+                </View>
+                <View style={styles.chartTrack}>
+                  {card.heights.map((heightRatio, index) => (
+                    <View
+                      key={`${card.title}-${index}`}
+                      style={[
+                        styles.chartBar,
+                        card.barStyle,
+                        {
+                          height: `${Math.round(heightRatio * 100)}%`,
+                        },
+                      ]}
+                    />
+                  ))}
+                </View>
+              </View>
+            ) : null}
+
+            <View style={styles.statsGrid}>
+              <View style={styles.statBlock}>
+                <Text style={styles.statLabel}>Peak</Text>
+                <Text style={styles.statValue}>{card.stats.max}{card.unit}</Text>
+              </View>
+              <View style={styles.statBlock}>
+                <Text style={styles.statLabel}>Low</Text>
+                <Text style={styles.statValue}>{card.stats.min}{card.unit}</Text>
+              </View>
             </View>
-          </View>
-        </View>
-      ))}
+          </>
+        );
+
+        return (
+          <Pressable
+            key={card.title}
+            style={({ pressed }) => [styles.card, card.surface, pressed && styles.cardPressed]}
+            onPress={() => setExpandedCard((previous) => (previous === card.title ? null : card.title))}>
+            {cardContent}
+          </Pressable>
+        );
+      })}
     </ScrollView>
   );
 }
@@ -205,6 +274,62 @@ const styles = StyleSheet.create({
   statsGrid: {
     flexDirection: "row",
     gap: 12,
+  },
+  chartWrap: {
+    marginBottom: 16,
+    padding: 12,
+    borderRadius: 16,
+    backgroundColor: "rgba(255, 255, 255, 0.04)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.07)",
+  },
+  tapHint: {
+    marginTop: -4,
+    marginBottom: 12,
+    fontSize: 12,
+    color: "#9fb2c3",
+    fontWeight: "600",
+  },
+  cardPressed: {
+    opacity: 0.92,
+  },
+  chartHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  chartLabel: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#9fb2c3",
+    textTransform: "uppercase",
+    letterSpacing: 0.7,
+  },
+  chartRange: {
+    fontSize: 12,
+    color: "#c9d7e3",
+    fontWeight: "600",
+  },
+  chartTrack: {
+    height: 96,
+    flexDirection: "row",
+    alignItems: "flex-end",
+    gap: 8,
+  },
+  chartBar: {
+    flex: 1,
+    borderRadius: 6,
+    minHeight: 10,
+  },
+  temperatureBar: {
+    backgroundColor: "#aecaff",
+  },
+  humidityBar: {
+    backgroundColor: "#7df0dc",
+  },
+  pressureBar: {
+    backgroundColor: "#ffb88f",
   },
   statBlock: {
     flex: 1,
