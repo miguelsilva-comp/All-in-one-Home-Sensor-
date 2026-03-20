@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import Svg, { Circle, Polyline } from "react-native-svg";
 import {
   humidityDataset,
   pressureDataset,
@@ -10,6 +11,11 @@ type SensorStats = {
   average: number;
   max: number;
   min: number;
+};
+
+type LinePoint = {
+  x: number;
+  y: number;
 };
 
 function getNormalizedHeights(dataset: number[]) {
@@ -47,8 +53,35 @@ function calculateStats(dataset: number[]): SensorStats {
   };
 }
 
+function getLinePoints(dataset: number[], width = 320, height = 96, padding = 8): LinePoint[] {
+  if (dataset.length === 0) {
+    return [];
+  }
+
+  const min = Math.min(...dataset);
+  const max = Math.max(...dataset);
+  const span = max - min || 1;
+  const usableWidth = width - padding * 2;
+  const usableHeight = height - padding * 2;
+
+  return dataset.map((value, index) => {
+    const ratio = dataset.length === 1 ? 0.5 : index / (dataset.length - 1);
+    const normalized = (value - min) / span;
+
+    return {
+      x: padding + ratio * usableWidth,
+      y: height - padding - normalized * usableHeight,
+    };
+  });
+}
+
+function formatChartValue(value: number) {
+  return Number.isInteger(value) ? value.toString() : value.toFixed(1);
+}
+
 export default function TabTwoScreen() {
-  const [expandedCard, setExpandedCard] = useState<string | null>(null);
+  const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({});
+  const [chartTypeByCard, setChartTypeByCard] = useState<Record<string, "bar" | "line">>({});
   const temperatureStats = calculateStats(temperatureDataset);
   const humidityStats = calculateStats(humidityDataset);
   const pressureStats = calculateStats(pressureDataset);
@@ -66,6 +99,7 @@ export default function TabTwoScreen() {
       accent: styles.temperatureAccent,
       surface: styles.temperatureCard,
       barStyle: styles.temperatureBar,
+      lineColor: "#aecaff",
       chartLabel: "Recent temperature trend",
     },
     {
@@ -77,6 +111,7 @@ export default function TabTwoScreen() {
       accent: styles.humidityAccent,
       surface: styles.humidityCard,
       barStyle: styles.humidityBar,
+      lineColor: "#7df0dc",
       chartLabel: "Recent humidity trend",
     },
     {
@@ -88,6 +123,7 @@ export default function TabTwoScreen() {
       accent: styles.pressureAccent,
       surface: styles.pressureCard,
       barStyle: styles.pressureBar,
+      lineColor: "#ffb88f",
       chartLabel: "Recent pressure trend",
     },
   ];
@@ -101,7 +137,14 @@ export default function TabTwoScreen() {
       </View>
 
       {historyCards.map((card) => {
-        const isExpanded = expandedCard === card.title;
+        const isExpanded = expandedCards[card.title] ?? false;
+        const cardChartType = chartTypeByCard[card.title] ?? "bar";
+        const firstValue = card.dataset[0];
+        const lastValue = card.dataset[card.dataset.length - 1];
+        const linePoints = getLinePoints(card.dataset);
+        const linePath = linePoints.map((point) => `${point.x},${point.y}`).join(" ");
+        const startPoint = linePoints[0];
+        const endPoint = linePoints[linePoints.length - 1];
 
         const cardContent = (
           <>
@@ -121,32 +164,70 @@ export default function TabTwoScreen() {
               <View style={styles.chartWrap}>
                 <View style={styles.chartHeaderRow}>
                   <Text style={styles.chartLabel}>{card.chartLabel}</Text>
+                  <View style={styles.chartTypeToggle}>
+                    <Pressable
+                      onPress={(event) => {
+                        event.stopPropagation();
+                        setChartTypeByCard((previous) => ({
+                          ...previous,
+                          [card.title]: "bar",
+                        }));
+                      }}
+                      style={[styles.chartTypeButton, cardChartType === "bar" && styles.chartTypeButtonActive]}>
+                      <Text style={[styles.chartTypeButtonText, cardChartType === "bar" && styles.chartTypeButtonTextActive]}>Bars</Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={(event) => {
+                        event.stopPropagation();
+                        setChartTypeByCard((previous) => ({
+                          ...previous,
+                          [card.title]: "line",
+                        }));
+                      }}
+                      style={[styles.chartTypeButton, cardChartType === "line" && styles.chartTypeButtonActive]}>
+                      <Text style={[styles.chartTypeButtonText, cardChartType === "line" && styles.chartTypeButtonTextActive]}>Line</Text>
+                    </Pressable>
+                  </View>
                 </View>
-                <View style={styles.chartTrack}>
-                  {card.heights.map((heightRatio, index) => (
-                    <View
-                      key={`${card.title}-${index}`}
-                      style={[
-                        styles.chartBar,
-                        card.barStyle,
-                        {
-                          height: `${Math.round(heightRatio * 100)}%`,
-                        },
-                      ]}
-                    />
-                  ))}
+                {cardChartType === "bar" ? (
+                  <View style={styles.chartTrack}>
+                    {card.heights.map((heightRatio, index) => (
+                      <View
+                        key={`${card.title}-${index}`}
+                        style={[
+                          styles.chartBar,
+                          card.barStyle,
+                          {
+                            height: `${Math.round(heightRatio * 100)}%`,
+                          },
+                        ]}
+                      />
+                    ))}
+                  </View>
+                ) : (
+                  <View style={styles.lineChartTrack}>
+                    <Svg width="100%" height="96" viewBox="0 0 320 96" preserveAspectRatio="none">
+                      <Polyline points={linePath} fill="none" stroke={card.lineColor} strokeWidth="3" />
+                      {startPoint ? <Circle cx={startPoint.x} cy={startPoint.y} r="3" fill={card.lineColor} /> : null}
+                      {endPoint ? <Circle cx={endPoint.x} cy={endPoint.y} r="3" fill={card.lineColor} /> : null}
+                    </Svg>
+                  </View>
+                )}
+                <View style={styles.chartEndpoints}>
+                  <Text style={styles.chartEndpointText}>First {formatChartValue(firstValue)}{card.unit}</Text>
+                  <Text style={styles.chartEndpointText}>Last {formatChartValue(lastValue)}{card.unit}</Text>
                 </View>
               </View>
             ) : null}
 
             <View style={styles.statsGrid}>
               <View style={styles.statBlock}>
-                <Text style={styles.statLabel}>Peak</Text>
-                <Text style={styles.statValue}>{card.stats.max}{card.unit}</Text>
-              </View>
-              <View style={styles.statBlock}>
                 <Text style={styles.statLabel}>Low</Text>
                 <Text style={styles.statValue}>{card.stats.min}{card.unit}</Text>
+              </View>
+              <View style={styles.statBlock}>
+                <Text style={styles.statLabel}>Peak</Text>
+                <Text style={styles.statValue}>{card.stats.max}{card.unit}</Text>
               </View>
             </View>
           </>
@@ -156,7 +237,12 @@ export default function TabTwoScreen() {
           <Pressable
             key={card.title}
             style={({ pressed }) => [styles.card, card.surface, pressed && styles.cardPressed]}
-            onPress={() => setExpandedCard((previous) => (previous === card.title ? null : card.title))}>
+            onPress={() =>
+              setExpandedCards((previous) => ({
+                ...previous,
+                [card.title]: !previous[card.title],
+              }))
+            }>
             {cardContent}
           </Pressable>
         );
@@ -295,11 +381,36 @@ const styles = StyleSheet.create({
   },
   chartHeaderRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 10,
+    gap: 8,
+  },
+  chartTypeToggle: {
+    flexDirection: "row",
+    borderRadius: 999,
+    backgroundColor: "rgba(255, 255, 255, 0.08)",
+    padding: 2,
+    flexShrink: 0,
+  },
+  chartTypeButton: {
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  chartTypeButtonActive: {
+    backgroundColor: "rgba(125, 240, 220, 0.22)",
+  },
+  chartTypeButtonText: {
+    fontSize: 11,
+    color: "#90a4b5",
+    fontWeight: "700",
+  },
+  chartTypeButtonTextActive: {
+    color: "#eaf9f5",
   },
   chartLabel: {
+    flex: 1,
+    minWidth: 0,
     fontSize: 12,
     fontWeight: "700",
     color: "#9fb2c3",
@@ -316,6 +427,19 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "flex-end",
     gap: 8,
+  },
+  lineChartTrack: {
+    height: 96,
+  },
+  chartEndpoints: {
+    marginTop: 8,
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  chartEndpointText: {
+    fontSize: 10,
+    color: "#92a5b6",
+    fontWeight: "600",
   },
   chartBar: {
     flex: 1,
