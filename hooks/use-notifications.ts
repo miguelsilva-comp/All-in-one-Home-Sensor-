@@ -59,6 +59,24 @@ export async function requestNotificationPermissions() {
 	return finalStatus === "granted";
 }
 
+export async function hasNotificationPermission() {
+	if (Platform.OS === "web") {
+		return false;
+	}
+
+	const current = await Notifications.getPermissionsAsync();
+	return current.status === "granted";
+}
+
+export async function getNotificationPermissionStatus() {
+	if (Platform.OS === "web") {
+		return "unsupported" as const;
+	}
+
+	const current = await Notifications.getPermissionsAsync();
+	return current.status;
+}
+
 export type LocalNotificationPayload = {
 	title: string;
 	body: string;

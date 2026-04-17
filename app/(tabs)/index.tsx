@@ -1,15 +1,17 @@
+import { useRouter } from "expo-router";
 import React, { useState } from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import {
-    humidityDataset,
-    pressureDataset,
-    temperatureDataset,
+  humidityDataset,
+  pressureDataset,
+  temperatureDataset,
 } from "../../constants/sensor-data";
 import ExpandableCard from "../card";
 
 
 
 export default function HomeTab() {
+  const router = useRouter();
   const [temperature] = useState(
     temperatureDataset.length > 0 ? temperatureDataset[temperatureDataset.length - 1]: 0
   );
@@ -86,13 +88,16 @@ export default function HomeTab() {
       <View style={styles.header}>
         <View style={styles.headerTopRow}>
           <Text style={styles.eyebrow}>Home Overview</Text>
-          <View style={[styles.statusChip, statusChipTone]}>
-            <View style={[styles.statusChipDot, statusChipDotTone]} />
-            <Text style={styles.statusChipText}>{statusChipLabel}</Text>
-          </View>
+          <Pressable style={styles.alertsButton} onPress={() => router.push('/modal')}>
+            <Text style={styles.alertsButtonText}>Alerts</Text>
+          </Pressable>
         </View>
         <Text style={styles.title}>Home Sensor Dashboard</Text>
         <Text style={styles.subtitle}>Live indoor climate readings with clear status indicators.</Text>
+        <View style={[styles.statusChip, statusChipTone]}>
+          <View style={[styles.statusChipDot, statusChipDotTone]} />
+          <Text style={styles.statusChipText}>{statusChipLabel}</Text>
+        </View>
       </View>
 
        <ExpandableCard
@@ -124,32 +129,34 @@ const styles = StyleSheet.create({
     backgroundColor: "#070a0d"
   },
   contentContainer: {
-    paddingTop: 60,
+    paddingTop: 56,
     paddingHorizontal: 20,
     paddingBottom: 120,
   },
   header: {
-    marginBottom: 20,
+    marginBottom: 18,
   },
   headerTopRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 8,
+    marginBottom: 10,
     gap: 12,
   },
   eyebrow: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "700",
     textTransform: "uppercase",
-    letterSpacing: 1.6,
+    letterSpacing: 1.4,
     color: "#7ee7d7",
   },
   statusChip: {
+    alignSelf: "flex-start",
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 7,
-    paddingHorizontal: 12,
+    marginTop: 14,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
     borderRadius: 999,
     borderWidth: 1,
   },
@@ -182,22 +189,36 @@ const styles = StyleSheet.create({
   },
   statusChipText: {
     color: "#f4f8fc",
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.3,
+  },
+  alertsButton: {
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "rgba(125, 240, 220, 0.4)",
+    backgroundColor: "rgba(125, 240, 220, 0.12)",
+    paddingHorizontal: 11,
+    paddingVertical: 7,
+  },
+  alertsButtonText: {
+    color: "#eafffb",
     fontSize: 12,
     fontWeight: "700",
     letterSpacing: 0.3,
   },
   title: {
-    fontSize: 30,
+    fontSize: 28,
     fontWeight: "800",
-    marginBottom: 8,
+    marginBottom: 7,
     color: "#f4f8fc",
     letterSpacing: 0.2,
-    lineHeight: 34,
+    lineHeight: 32,
   },
   subtitle: {
-    fontSize: 15,
+    fontSize: 14,
     color: "#8fa5b7",
-    lineHeight: 22,
+    lineHeight: 21,
     maxWidth: 320,
   },
   text: {
