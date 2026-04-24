@@ -2,6 +2,18 @@ import { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import {
+  getCurrentHumidity,
+  getCurrentPressure,
+  getCurrentTemperature,
+  HIGH_TEMPERATURE_THRESHOLD,
+  setCurrentHumidity,
+  setCurrentPressure,
+  setCurrentTemperature,
+  subscribeToHumidity,
+  subscribeToPressure,
+  subscribeToTemperature
+} from '@/constants/sensor-data';
+import {
   addNotificationReceivedListener,
   addNotificationResponseListener,
   configureNotifications,
@@ -17,6 +29,9 @@ type PermissionState = 'idle' | 'checking' | 'granted' | 'denied' | 'unsupported
 
 export default function ModalScreen() {
   const [permissionState, setPermissionState] = useState<PermissionState>('idle');
+  const [currentTemperature, setCurrentTemperatureDisplay] = useState<number>(getCurrentTemperature());
+  const [currentHumidity, setCurrentHumidityDisplay] = useState<number>(getCurrentHumidity());
+  const [currentPressure, setCurrentPressureDisplay] = useState<number>(getCurrentPressure());
   const [lastReceivedTitle, setLastReceivedTitle] = useState<string | null>(null);
   const [lastOpenedTitle, setLastOpenedTitle] = useState<string | null>(null);
   const [expoPushToken, setExpoPushToken] = useState<string | null>(null);
@@ -99,6 +114,24 @@ export default function ModalScreen() {
     return 'Notification status has not been checked yet.';
   }, [permissionState]);
 
+  useEffect(() => {
+    return subscribeToTemperature((nextTemperature) => {
+      setCurrentTemperatureDisplay(nextTemperature);
+    });
+  }, []);
+
+  useEffect(() => {
+    return subscribeToHumidity((nextHumidity) => {
+      setCurrentHumidityDisplay(nextHumidity);
+    });
+  }, []);
+
+  useEffect(() => {
+    return subscribeToPressure((nextPressure) => {
+      setCurrentPressureDisplay(nextPressure);
+    });
+  }, []);
+
   const handleEnableNotifications = async () => {
     setIsBusy(true);
     setStatusMessage(null);
@@ -174,6 +207,113 @@ export default function ModalScreen() {
     }
   };
 
+  const handleSimulateHighTemperature = async () => {
+    setIsBusy(true);
+    setStatusMessage(null);
+
+    const simulatedTemperature = 27.2;
+
+    try {
+      setCurrentTemperature(simulatedTemperature);
+
+      setStatusMessage(
+        `Simulated temperature set to ${simulatedTemperature.toFixed(1)}°C. If notifications are enabled, the high-temperature alert should trigger once.`
+      );
+    } catch (error) {
+      setStatusMessage('Unable to simulate the high-temperature alert right now.');
+      console.warn('Failed to simulate high temperature alert', error);
+    } finally {
+      setIsBusy(false);
+    }
+  };
+
+  const handleResetTemperatureBelowThreshold = async () => {
+    setIsBusy(true);
+    setStatusMessage(null);
+
+    const resetTemperature = 24.0;
+
+    try {
+      setCurrentTemperature(resetTemperature);
+      setStatusMessage(
+        `Temperature reset to ${resetTemperature.toFixed(1)}°C (below ${HIGH_TEMPERATURE_THRESHOLD}°C). You can simulate high temperature again to retrigger the alert.`
+      );
+    } catch (error) {
+      setStatusMessage('Unable to reset the simulated temperature right now.');
+      console.warn('Failed to reset simulated temperature', error);
+    } finally {
+      setIsBusy(false);
+    }
+  };
+
+  const handleSimulateHighHumidity = async () => {
+    setIsBusy(true);
+    setStatusMessage(null);
+
+    const simulatedHumidity = 65.0;
+
+    try {
+      setCurrentHumidity(simulatedHumidity);
+      setStatusMessage(`Simulated humidity set to ${simulatedHumidity.toFixed(1)}%.`);
+    } catch (error) {
+      setStatusMessage('Unable to simulate the high-humidity alert right now.');
+      console.warn('Failed to simulate high humidity alert', error);
+    } finally {
+      setIsBusy(false);
+    }
+  };
+
+  const handleResetHumidityBelowThreshold = async () => {
+    setIsBusy(true);
+    setStatusMessage(null);
+
+    const resetHumidity = 50.0;
+
+    try {
+      setCurrentHumidity(resetHumidity);
+      setStatusMessage(`Humidity reset to ${resetHumidity.toFixed(1)}%. You can simulate high humidity again to retrigger the alert.`);
+    } catch (error) {
+      setStatusMessage('Unable to reset the simulated humidity right now.');
+      console.warn('Failed to reset simulated humidity', error);
+    } finally {
+      setIsBusy(false);
+    }
+  };
+
+  const handleSimulateLowPressure = async () => {
+    setIsBusy(true);
+    setStatusMessage(null);
+
+    const simulatedPressure = 998;
+
+    try {
+      setCurrentPressure(simulatedPressure);
+      setStatusMessage(`Simulated pressure set to ${simulatedPressure} hPa.`);
+    } catch (error) {
+      setStatusMessage('Unable to simulate the low-pressure alert right now.');
+      console.warn('Failed to simulate low pressure alert', error);
+    } finally {
+      setIsBusy(false);
+    }
+  };
+
+  const handleResetPressureAboveThreshold = async () => {
+    setIsBusy(true);
+    setStatusMessage(null);
+
+    const resetPressure = 1012;
+
+    try {
+      setCurrentPressure(resetPressure);
+      setStatusMessage(`Pressure reset to ${resetPressure} hPa. You can simulate low pressure again to retrigger the alert.`);
+    } catch (error) {
+      setStatusMessage('Unable to reset the simulated pressure right now.');
+      console.warn('Failed to reset simulated pressure', error);
+    } finally {
+      setIsBusy(false);
+    }
+  };
+
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       <View style={styles.header}>
@@ -191,6 +331,105 @@ export default function ModalScreen() {
         <Text style={styles.cardTitle}>Notification Events</Text>
         <Text style={styles.cardBody}>Last received: {lastReceivedTitle ?? 'None yet'}</Text>
         <Text style={styles.cardBody}>Last opened: {lastOpenedTitle ?? 'None yet'}</Text>
+      </View>
+
+      <View style={styles.sectionBlock}>
+        <Text style={styles.sectionLabel}>TEMPERATURE</Text>
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Current Simulated Temperature</Text>
+          <Text style={styles.currentTemperatureValue}>{currentTemperature.toFixed(1)}°C</Text>
+          <Text style={styles.cardBody}>Use the simulate/reset buttons below to change this value for threshold testing.</Text>
+        </View>
+
+        <View style={styles.actionsGroup}>
+          <Pressable
+            disabled={isBusy || permissionState === 'unsupported'}
+            onPress={handleSimulateHighTemperature}
+            style={({ pressed }) => [
+              styles.button,
+              styles.buttonSecondary,
+              (pressed || isBusy || permissionState === 'unsupported') && styles.buttonDisabled,
+            ]}>
+            <Text style={styles.buttonSecondaryText}>Simulate high temperature (27.2°C)</Text>
+          </Pressable>
+
+          <Pressable
+            disabled={isBusy || permissionState === 'unsupported'}
+            onPress={handleResetTemperatureBelowThreshold}
+            style={({ pressed }) => [
+              styles.button,
+              styles.buttonSecondary,
+              (pressed || isBusy || permissionState === 'unsupported') && styles.buttonDisabled,
+            ]}>
+            <Text style={styles.buttonSecondaryText}>Reset temperature below threshold (24.0°C)</Text>
+          </Pressable>
+        </View>
+      </View>
+
+      <View style={styles.sectionBlock}>
+        <Text style={styles.sectionLabel}>HUMIDITY</Text>
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Current Simulated Humidity</Text>
+          <Text style={styles.currentTemperatureValue}>{currentHumidity.toFixed(1)}%</Text>
+          <Text style={styles.cardBody}>Use the humidity buttons below to test the high-humidity alert flow.</Text>
+        </View>
+
+        <View style={styles.actionsGroup}>
+          <Pressable
+            disabled={isBusy || permissionState === 'unsupported'}
+            onPress={handleSimulateHighHumidity}
+            style={({ pressed }) => [
+              styles.button,
+              styles.buttonSecondary,
+              (pressed || isBusy || permissionState === 'unsupported') && styles.buttonDisabled,
+            ]}>
+            <Text style={styles.buttonSecondaryText}>Simulate high humidity (65.0%)</Text>
+          </Pressable>
+
+          <Pressable
+            disabled={isBusy || permissionState === 'unsupported'}
+            onPress={handleResetHumidityBelowThreshold}
+            style={({ pressed }) => [
+              styles.button,
+              styles.buttonSecondary,
+              (pressed || isBusy || permissionState === 'unsupported') && styles.buttonDisabled,
+            ]}>
+            <Text style={styles.buttonSecondaryText}>Reset humidity below threshold (50.0%)</Text>
+          </Pressable>
+        </View>
+      </View>
+
+      <View style={styles.sectionBlock}>
+        <Text style={styles.sectionLabel}>PRESSURE</Text>
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Current Simulated Pressure</Text>
+          <Text style={styles.currentTemperatureValue}>{currentPressure.toFixed(0)} hPa</Text>
+          <Text style={styles.cardBody}>Use the pressure buttons below to test the low-pressure alert flow.</Text>
+        </View>
+
+        <View style={styles.actionsGroup}>
+          <Pressable
+            disabled={isBusy || permissionState === 'unsupported'}
+            onPress={handleSimulateLowPressure}
+            style={({ pressed }) => [
+              styles.button,
+              styles.buttonSecondary,
+              (pressed || isBusy || permissionState === 'unsupported') && styles.buttonDisabled,
+            ]}>
+            <Text style={styles.buttonSecondaryText}>Simulate low pressure (998 hPa)</Text>
+          </Pressable>
+
+          <Pressable
+            disabled={isBusy || permissionState === 'unsupported'}
+            onPress={handleResetPressureAboveThreshold}
+            style={({ pressed }) => [
+              styles.button,
+              styles.buttonSecondary,
+              (pressed || isBusy || permissionState === 'unsupported') && styles.buttonDisabled,
+            ]}>
+            <Text style={styles.buttonSecondaryText}>Reset pressure above threshold (1012 hPa)</Text>
+          </Pressable>
+        </View>
       </View>
 
       <View style={styles.card}>
@@ -247,7 +486,7 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: 20,
     paddingTop: 18,
-    paddingBottom: 28,
+    paddingBottom: 56,
     gap: 12,
   },
   header: {
@@ -290,6 +529,17 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
   },
+  sectionBlock: {
+    gap: 10,
+  },
+  sectionLabel: {
+    color: '#7ee7d7',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 1.3,
+    textTransform: 'uppercase',
+    marginTop: 4,
+  },
   tokenValue: {
     marginTop: 8,
     color: '#7df0dc',
@@ -298,8 +548,17 @@ const styles = StyleSheet.create({
     fontFamily: 'monospace',
     flexWrap: 'wrap',
   },
+  currentTemperatureValue: {
+    color: '#7df0dc',
+    fontSize: 24,
+    fontWeight: '800',
+    marginBottom: 6,
+  },
   actions: {
     marginTop: 4,
+    gap: 10,
+  },
+  actionsGroup: {
     gap: 10,
   },
   button: {

@@ -1,26 +1,158 @@
+import { hasNotificationPermission, sendLocalNotification } from "@/hooks/use-notifications";
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import {
-  humidityDataset,
-  pressureDataset,
-  temperatureDataset,
+  HIGH_HUMIDITY_THRESHOLD,
+  HIGH_TEMPERATURE_THRESHOLD,
+  LOW_PRESSURE_THRESHOLD,
+  getCurrentHumidity,
+  getCurrentPressure,
+  getCurrentTemperature,
+  subscribeToHumidity,
+  subscribeToPressure,
+  subscribeToTemperature,
 } from "../../constants/sensor-data";
 import ExpandableCard from "../card";
 
 
-
 export default function HomeTab() {
   const router = useRouter();
-  const [temperature] = useState(
-    temperatureDataset.length > 0 ? temperatureDataset[temperatureDataset.length - 1]: 0
-  );
-  const [humidity] = useState(
-    humidityDataset.length > 0 ? humidityDataset[humidityDataset.length - 1] : 0
-  );
-  const [pressure] = useState(
-    pressureDataset.length > 0 ? pressureDataset[pressureDataset.length - 1] : 0
-  );
+  const [temperature, setTemperature] = useState(getCurrentTemperature());
+  const [humidity, setHumidity] = useState(getCurrentHumidity());
+  const [pressure, setPressure] = useState(getCurrentPressure());
+  const wasAboveHighTemperatureThreshold = useRef(temperature > HIGH_TEMPERATURE_THRESHOLD);
+  const wasAboveHighHumidityThreshold = useRef(humidity > HIGH_HUMIDITY_THRESHOLD);
+  const wasBelowLowPressureThreshold = useRef(pressure < LOW_PRESSURE_THRESHOLD);
+
+  useEffect(() => {
+    return subscribeToTemperature((nextTemperature) => {
+      setTemperature(nextTemperature);
+    });
+  }, []);
+
+  useEffect(() => {
+    return subscribeToHumidity((nextHumidity) => {
+      setHumidity(nextHumidity);
+    });
+  }, []);
+
+  useEffect(() => {
+    return subscribeToPressure((nextPressure) => {
+      setPressure(nextPressure);
+    });
+  }, []);
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    const notifyOnThresholdCrossing = async () => {
+      const isAboveThreshold = temperature > HIGH_TEMPERATURE_THRESHOLD;
+
+      if (!wasAboveHighTemperatureThreshold.current && isAboveThreshold) {
+        const hasPermission = await hasNotificationPermission();
+
+        if (!hasPermission || isCancelled) {
+          wasAboveHighTemperatureThreshold.current = isAboveThreshold;
+          return;
+        }
+
+        await sendLocalNotification({
+          title: "High temperature alert",
+          body: `Temperature reached ${temperature.toFixed(1)}°C.`,
+          data: {
+            type: "temperature-high-threshold",
+            threshold: HIGH_TEMPERATURE_THRESHOLD,
+            value: temperature,
+          },
+        });
+      }
+
+      wasAboveHighTemperatureThreshold.current = isAboveThreshold;
+    };
+
+    notifyOnThresholdCrossing().catch((error) => {
+      console.warn("Failed to send high temperature threshold alert", error);
+    });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [temperature]);
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    const notifyOnHumidityCrossing = async () => {
+      const isAboveThreshold = humidity > HIGH_HUMIDITY_THRESHOLD;
+
+      if (!wasAboveHighHumidityThreshold.current && isAboveThreshold) {
+        const hasPermission = await hasNotificationPermission();
+
+        if (!hasPermission || isCancelled) {
+          wasAboveHighHumidityThreshold.current = isAboveThreshold;
+          return;
+        }
+
+        await sendLocalNotification({
+          title: "High humidity alert",
+          body: `Humidity reached ${humidity.toFixed(1)}%.`,
+          data: {
+            type: "humidity-high-threshold",
+            threshold: HIGH_HUMIDITY_THRESHOLD,
+            value: humidity,
+          },
+        });
+      }
+
+      wasAboveHighHumidityThreshold.current = isAboveThreshold;
+    };
+
+    notifyOnHumidityCrossing().catch((error) => {
+      console.warn("Failed to send high humidity threshold alert", error);
+    });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [humidity]);
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    const notifyOnPressureCrossing = async () => {
+      const isBelowThreshold = pressure < LOW_PRESSURE_THRESHOLD;
+
+      if (!wasBelowLowPressureThreshold.current && isBelowThreshold) {
+        const hasPermission = await hasNotificationPermission();
+
+        if (!hasPermission || isCancelled) {
+          wasBelowLowPressureThreshold.current = isBelowThreshold;
+          return;
+        }
+
+        await sendLocalNotification({
+          title: "Low pressure alert",
+          body: `Pressure dropped to ${pressure.toFixed(0)} hPa.`,
+          data: {
+            type: "pressure-low-threshold",
+            threshold: LOW_PRESSURE_THRESHOLD,
+            value: pressure,
+          },
+        });
+      }
+
+      wasBelowLowPressureThreshold.current = isBelowThreshold;
+    };
+
+    notifyOnPressureCrossing().catch((error) => {
+      console.warn("Failed to send low pressure threshold alert", error);
+    });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [pressure]);
 
   let temperatureDetails = "";
   if (temperature < 18) {
@@ -53,17 +185,21 @@ export default function HomeTab() {
   let statusChipTone = styles.statusChipBalanced;
   let statusChipDotTone = styles.statusChipDotBalanced;
 
-  const activeAlerts = [temperature < 18 || temperature >= 26, humidity < 30 || humidity >= 60].filter(Boolean).length;
+  const activeAlerts = [
+    temperature < 18 || temperature >= HIGH_TEMPERATURE_THRESHOLD,
+    humidity < 30 || humidity >= HIGH_HUMIDITY_THRESHOLD,
+    pressure < LOW_PRESSURE_THRESHOLD,
+  ].filter(Boolean).length;
 
   if (activeAlerts >= 2) {
-    statusChipLabel = "2 indoor alerts";
+    statusChipLabel = `${activeAlerts} climate alerts`;
     statusChipTone = styles.statusChipHigh;
     statusChipDotTone = styles.statusChipDotHigh;
-  } else if (humidity >= 60) {
+  } else if (humidity >= HIGH_HUMIDITY_THRESHOLD) {
     statusChipLabel = "Humidity high";
     statusChipTone = styles.statusChipHigh;
     statusChipDotTone = styles.statusChipDotHigh;
-  } else if (temperature >= 26) {
+  } else if (temperature >= HIGH_TEMPERATURE_THRESHOLD) {
     statusChipLabel = "Temperature high";
     statusChipTone = styles.statusChipHigh;
     statusChipDotTone = styles.statusChipDotHigh;

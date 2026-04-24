@@ -94,6 +94,7 @@ export async function sendLocalNotification(payload: LocalNotificationPayload) {
 			body: payload.body,
 			data: payload.data,
 			sound: true,
+			color: "#7df0dc",
 		},
 		trigger: null,
 	});
