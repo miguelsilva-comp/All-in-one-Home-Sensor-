@@ -1,11 +1,15 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import Svg, { Circle, Polyline } from "react-native-svg";
-import {
-  humidityDataset,
-  pressureDataset,
-  temperatureDataset,
-} from "../../constants/sensor-data";
+import { getReadings, getReadingsForToday, getStorageStats, clearAllReadings } from "@/services/storage";
+import { generateTestData } from "@/services/test-data-generator";
+
+type StoredReading = {
+  temperature: number;
+  humidity: number;
+  pressure: number;
+  timestamp: number;
+};
 
 type SensorStats = {
   average: number;
@@ -53,6 +57,28 @@ function calculateStats(dataset: number[]): SensorStats {
   };
 }
 
+/**
+ * Downsample dataset for bar chart display
+ * With 168 readings, bars become too thin - reduce to ~32 visible bars
+ */
+function downsampleDataset(dataset: number[], targetLength: number = 32): number[] {
+  if (dataset.length <= targetLength) {
+    return dataset;
+  }
+
+  const result: number[] = [];
+  const chunkSize = Math.ceil(dataset.length / targetLength);
+
+  for (let i = 0; i < dataset.length; i += chunkSize) {
+    const chunk = dataset.slice(i, i + chunkSize);
+    // Average each chunk for smoother visualization
+    const average = chunk.reduce((a, b) => a + b, 0) / chunk.length;
+    result.push(average);
+  }
+
+  return result;
+}
+
 function getLinePoints(dataset: number[], width = 320, height = 96, padding = 8): LinePoint[] {
   if (dataset.length === 0) {
     return [];
@@ -82,19 +108,55 @@ function formatChartValue(value: number) {
 export default function TabTwoScreen() {
   const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({});
   const [chartTypeByCard, setChartTypeByCard] = useState<Record<string, "bar" | "line">>({});
+  const [readings, setReadings] = useState<StoredReading[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [timePeriod, setTimePeriod] = useState<"today" | "week">("today");
+
+  useEffect(() => {
+    loadReadings();
+  }, [timePeriod]);
+
+  const loadReadings = async () => {
+    setIsLoading(true);
+    try {
+      let data: StoredReading[] = [];
+      if (timePeriod === "today") {
+        data = await getReadingsForToday();
+      } else {
+        data = await getReadings();
+      }
+      setReadings(data);
+    } catch (error) {
+      console.error("Failed to load readings:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Extract individual datasets from readings
+  const temperatureDataset = readings.map((r) => r.temperature);
+  const humidityDataset = readings.map((r) => r.humidity);
+  const pressureDataset = readings.map((r) => r.pressure);
+
   const temperatureStats = calculateStats(temperatureDataset);
   const humidityStats = calculateStats(humidityDataset);
   const pressureStats = calculateStats(pressureDataset);
-  const temperatureHeights = getNormalizedHeights(temperatureDataset);
-  const humidityHeights = getNormalizedHeights(humidityDataset);
-  const pressureHeights = getNormalizedHeights(pressureDataset);
+
+  // Downsample for better bar chart visualization
+  const temperatureDatasetDownsampled = downsampleDataset(temperatureDataset);
+  const humidityDatasetDownsampled = downsampleDataset(humidityDataset);
+  const pressureDatasetDownsampled = downsampleDataset(pressureDataset);
+
+  const temperatureHeights = getNormalizedHeights(temperatureDatasetDownsampled);
+  const humidityHeights = getNormalizedHeights(humidityDatasetDownsampled);
+  const pressureHeights = getNormalizedHeights(pressureDatasetDownsampled);
 
   const historyCards = [
     {
       title: "Temperature",
       unit: "°C",
       stats: temperatureStats,
-      dataset: temperatureDataset,
+      dataset: temperatureDatasetDownsampled,
       heights: temperatureHeights,
       accent: styles.temperatureAccent,
       surface: styles.temperatureCard,
@@ -106,7 +168,7 @@ export default function TabTwoScreen() {
       title: "Humidity",
       unit: "%",
       stats: humidityStats,
-      dataset: humidityDataset,
+      dataset: humidityDatasetDownsampled,
       heights: humidityHeights,
       accent: styles.humidityAccent,
       surface: styles.humidityCard,
@@ -118,7 +180,7 @@ export default function TabTwoScreen() {
       title: "Pressure",
       unit: "hPa",
       stats: pressureStats,
-      dataset: pressureDataset,
+      dataset: pressureDatasetDownsampled,
       heights: pressureHeights,
       accent: styles.pressureAccent,
       surface: styles.pressureCard,
@@ -134,9 +196,63 @@ export default function TabTwoScreen() {
         <Text style={styles.eyebrow}>Historical Overview</Text>
         <Text style={styles.title}>Sensor Trends</Text>
         <Text style={styles.subtitle}>Review average, peak, and low readings across each tracked indoor metric.</Text>
+
+        <View style={styles.timePeriodSelector}>
+          <Pressable
+            style={[styles.timePeriodButton, timePeriod === "today" && styles.timePeriodButtonActive]}
+            onPress={() => setTimePeriod("today")}>
+            <Text style={[styles.timePeriodButtonText, timePeriod === "today" && styles.timePeriodButtonTextActive]}>
+              Today
+            </Text>
+          </Pressable>
+          <Pressable
+            style={[styles.timePeriodButton, timePeriod === "week" && styles.timePeriodButtonActive]}
+            onPress={() => setTimePeriod("week")}>
+            <Text style={[styles.timePeriodButtonText, timePeriod === "week" && styles.timePeriodButtonTextActive]}>
+              7 Days
+            </Text>
+          </Pressable>
+        </View>
+
+        <Pressable
+          onPress={async () => {
+            try {
+              await generateTestData();
+              await loadReadings();
+            } catch (error) {
+              console.error("Failed to generate test data:", error);
+            }
+          }}
+          style={styles.debugButton}>
+          <Text style={styles.debugButtonText}>Generate Test Data</Text>
+        </Pressable>
+
+        <Pressable
+          onPress={async () => {
+            try {
+              await clearAllReadings();
+              await loadReadings();
+            } catch (error) {
+              console.error("Failed to clear history:", error);
+            }
+          }}
+          style={styles.clearButton}>
+          <Text style={styles.clearButtonText}>Clear History</Text>
+        </Pressable>
       </View>
 
-      {historyCards.map((card) => {
+      {isLoading ? (
+        <Text style={styles.loadingText}>Loading data...</Text>
+      ) : readings.length === 0 ? (
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyStateTitle}>No Data Yet</Text>
+          <Text style={styles.emptyStateText}>
+            Historical data will appear here once your sensor starts sending readings.
+          </Text>
+        </View>
+      ) : (
+        <>
+          {historyCards.map((card) => {
         const isExpanded = expandedCards[card.title] ?? false;
         const cardChartType = chartTypeByCard[card.title] ?? "bar";
         const firstValue = card.dataset[0];
@@ -247,6 +363,8 @@ export default function TabTwoScreen() {
           </Pressable>
         );
       })}
+        </>
+      )}
     </ScrollView>
   );
 }
@@ -285,6 +403,84 @@ const styles = StyleSheet.create({
     color: "#8fa5b7",
     lineHeight: 22,
     maxWidth: 320,
+  },
+  timePeriodSelector: {
+    flexDirection: "row",
+    marginTop: 16,
+    borderRadius: 999,
+    backgroundColor: "rgba(255, 255, 255, 0.08)",
+    padding: 2,
+    alignSelf: "flex-start",
+  },
+  timePeriodButton: {
+    borderRadius: 999,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  timePeriodButtonActive: {
+    backgroundColor: "rgba(125, 240, 220, 0.22)",
+  },
+  timePeriodButtonText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#8fa5b7",
+  },
+  timePeriodButtonTextActive: {
+    color: "#eaf9f5",
+  },
+  debugButton: {
+    marginTop: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    backgroundColor: "rgba(255, 100, 100, 0.2)",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "rgba(255, 100, 100, 0.5)",
+    alignSelf: "flex-start",
+  },
+  debugButtonText: {
+    color: "#ff6464",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  clearButton: {
+    marginTop: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    backgroundColor: "rgba(150, 150, 150, 0.2)",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "rgba(150, 150, 150, 0.5)",
+    alignSelf: "flex-start",
+  },
+  clearButtonText: {
+    color: "#b0b0b0",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  loadingText: {
+    fontSize: 16,
+    color: "#8fa5b7",
+    textAlign: "center",
+    marginTop: 40,
+  },
+  emptyState: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 80,
+  },
+  emptyStateTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#f4f8fc",
+    marginBottom: 8,
+  },
+  emptyStateText: {
+    fontSize: 14,
+    color: "#8fa5b7",
+    textAlign: "center",
+    maxWidth: 260,
+    lineHeight: 20,
   },
   card: {
     width: "100%",

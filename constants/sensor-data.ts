@@ -7,15 +7,20 @@ export const HIGH_HUMIDITY_THRESHOLD = 60;
 export const LOW_PRESSURE_THRESHOLD = 1000;
 
 type SensorListener = (value: number) => void;
+type StalenessListener = (isStale: boolean, timeSinceUpdate: number | null) => void;
 
 let currentTemperature =
 	temperatureDataset.length > 0 ? temperatureDataset[temperatureDataset.length - 1] : 0;
 let currentHumidity = humidityDataset.length > 0 ? humidityDataset[humidityDataset.length - 1] : 0;
 let currentPressure = pressureDataset.length > 0 ? pressureDataset[pressureDataset.length - 1] : 0;
 
+let lastUpdateTime: number | null = null;
+let isDataStale = false;
+
 const temperatureListeners = new Set<SensorListener>();
 const humidityListeners = new Set<SensorListener>();
 const pressureListeners = new Set<SensorListener>();
+const stalenessListeners = new Set<StalenessListener>();
 
 export function getCurrentTemperature() {
 	return currentTemperature;
@@ -77,5 +82,39 @@ export function subscribeToPressure(listener: SensorListener) {
 
 	return () => {
 		pressureListeners.delete(listener);
+	};
+}
+
+// Staleness tracking
+export function getLastUpdateTime(): number | null {
+	return lastUpdateTime;
+}
+
+export function setLastUpdateTime(timestamp: number): void {
+	lastUpdateTime = timestamp;
+}
+
+export function getTimeSinceLastUpdate(): number | null {
+	if (!lastUpdateTime) return null;
+	return Date.now() - lastUpdateTime;
+}
+
+export function getIsDataStale(): boolean {
+	return isDataStale;
+}
+
+export function setIsDataStale(stale: boolean): void {
+	if (isDataStale !== stale) {
+		isDataStale = stale;
+		const timeSinceUpdate = getTimeSinceLastUpdate();
+		stalenessListeners.forEach((listener) => listener(stale, timeSinceUpdate));
+	}
+}
+
+export function subscribeToStaleness(listener: StalenessListener) {
+	stalenessListeners.add(listener);
+
+	return () => {
+		stalenessListeners.delete(listener);
 	};
 }

@@ -9,6 +9,7 @@ import 'react-native-reanimated';
 import { AuthProvider } from '@/hooks/use-auth';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { configureNotifications } from '@/hooks/use-notifications';
+import { useSensorDataPolling } from '@/hooks/use-sensor-data-polling';
 
 export const unstable_settings = {
   anchor: '(tabs)',
@@ -16,6 +17,9 @@ export const unstable_settings = {
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
+
+  // Initialize sensor data polling from API
+  useSensorDataPolling();
 
   useEffect(() => {
     configureNotifications().catch((error) => {

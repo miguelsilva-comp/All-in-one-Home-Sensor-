@@ -1,4 +1,5 @@
 import { hasNotificationPermission, sendLocalNotification } from "@/hooks/use-notifications";
+import { useStalenessIndicator } from "@/hooks/use-staleness-indicator";
 import { useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -21,6 +22,7 @@ export default function HomeTab() {
   const [temperature, setTemperature] = useState(getCurrentTemperature());
   const [humidity, setHumidity] = useState(getCurrentHumidity());
   const [pressure, setPressure] = useState(getCurrentPressure());
+  const { isStale, formattedTime } = useStalenessIndicator();
   const wasAboveHighTemperatureThreshold = useRef(temperature > HIGH_TEMPERATURE_THRESHOLD);
   const wasAboveHighHumidityThreshold = useRef(humidity > HIGH_HUMIDITY_THRESHOLD);
   const wasBelowLowPressureThreshold = useRef(pressure < LOW_PRESSURE_THRESHOLD);
@@ -236,6 +238,20 @@ export default function HomeTab() {
         </View>
       </View>
 
+      {isStale && (
+        <View style={styles.stalenessWarning}>
+          <Text style={styles.stalenessWarningText}>
+            ⚠️ Data may be outdated ({formattedTime})
+          </Text>
+        </View>
+      )}
+
+      {formattedTime && !isStale && (
+        <View style={styles.lastUpdateInfo}>
+          <Text style={styles.lastUpdateText}>Last updated {formattedTime}</Text>
+        </View>
+      )}
+
        <ExpandableCard
         title="Temperature"
         summary={`${temperature}°C`}
@@ -360,5 +376,26 @@ const styles = StyleSheet.create({
   text: {
     fontSize: 18,
     color: "#ffffff",
+  },
+  stalenessWarning: {
+    backgroundColor: "rgba(240, 138, 86, 0.16)",
+    borderColor: "rgba(255, 194, 164, 0.35)",
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+  },
+  stalenessWarningText: {
+    color: "#ffb88f",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  lastUpdateInfo: {
+    marginBottom: 12,
+  },
+  lastUpdateText: {
+    color: "#8fa5b7",
+    fontSize: 11,
+    fontWeight: "500",
   },
 });
